@@ -23,9 +23,8 @@ Para ejecutar este bot, necesitas:
   - `decimal`: Para manejar cálculos de precisión con monedas y precios.
 
 Instala las dependencias con el siguiente comando:
-
-```bash
 pip install pybit pyTelegramBotAPI
+
 Configuración
 1. Obtener la API Key y API Secret de Bybit
 Crea una cuenta en Bybit.
@@ -33,7 +32,7 @@ Ve a API en la configuración de tu cuenta y genera una nueva clave de API con p
 2. Configurar el archivo config.py
 Crea un archivo config.py en el mismo directorio donde tienes el script y coloca tus credenciales de API de Bybit y tu token de Telegram:
 
-```bash
+
 api_key = 'tu_api_key'
 api_secret = 'tu_api_secret'
 token_telegram = 'tu_telegram_bot_token'
