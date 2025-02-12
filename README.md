@@ -16,7 +16,7 @@ Este es un bot de trading diseñado para operar en la plataforma Bybit utilizand
 
 Para ejecutar este bot, necesitas:
 
-- Python 3.6+.
+- Python version anterior a la ultima.
 - Las siguientes librerías de Python:
   - `pybit`: Librería para interactuar con la API de Bybit.
   - `telebot`: Librería para enviar mensajes a Telegram.
