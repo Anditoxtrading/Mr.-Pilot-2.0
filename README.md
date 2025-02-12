@@ -23,8 +23,10 @@ Para ejecutar este bot, necesitas:
   - `decimal`: Para manejar cálculos de precisión con monedas y precios.
 
 Instala las dependencias con el siguiente comando:
-pip install pybit pyTelegramBotAPI
-
+```python
+pip install pybit 
+pyTelegramBotAPI
+```
 # **Configuración del Bot de Trading en Bybit**
 
 ## 1. Obtener la API Key y API Secret de Bybit
