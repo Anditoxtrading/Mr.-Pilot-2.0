@@ -25,22 +25,20 @@ Para ejecutar este bot, necesitas:
 Instala las dependencias con el siguiente comando:
 pip install pybit pyTelegramBotAPI
 
-Configuración
+## Configuración
 1. Obtener la API Key y API Secret de Bybit
 Crea una cuenta en Bybit.
 Ve a API en la configuración de tu cuenta y genera una nueva clave de API con permisos de trading (sin permisos de retiro).
-2. Configurar el archivo config.py
+
+3. Configurar el archivo config.py
 Crea un archivo config.py en el mismo directorio donde tienes el script y coloca tus credenciales de API de Bybit y tu token de Telegram:
 
 
 api_key = 'tu_api_key'
 api_secret = 'tu_api_secret'
+
 token_telegram = 'tu_telegram_bot_token'
 chat_id = 'tu_chat_id_telegram'
-api_key: La clave de API de Bybit.
-api_secret: El secreto de tu clave de API de Bybit.
-token_telegram: El token de tu bot de Telegram.
-chat_id: El ID del chat de Telegram donde recibirás las notificaciones.
 
 3. Ajustes de parámetros
 Dentro del script, puedes ajustar varios parámetros para personalizar el comportamiento del bot:
