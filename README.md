@@ -43,7 +43,7 @@ api_secret = 'tu_api_secret'
 
 token_telegram = 'tu_telegram_bot_token'
 chat_id = 'tu_chat_id_telegram'
-
+---
 ## 3. Ajustes de Parámetros Personalizados
 Dentro del script, puedes ajustar los siguientes parámetros para personalizar el comportamiento de tu bot de acuerdo a tus necesidades:
 
