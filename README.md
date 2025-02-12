@@ -25,13 +25,13 @@ Para ejecutar este bot, necesitas:
 Instala las dependencias con el siguiente comando:
 pip install pybit pyTelegramBotAPI
 
-## Configuración
+Configuración del Bot de Trading en Bybit
 1. Obtener la API Key y API Secret de Bybit
-Crea una cuenta en Bybit.
-Ve a API en la configuración de tu cuenta y genera una nueva clave de API con permisos de trading (sin permisos de retiro).
-
-3. Configurar el archivo config.py
-Crea un archivo config.py en el mismo directorio donde tienes el script y coloca tus credenciales de API de Bybit y tu token de Telegram:
+Crea una cuenta en Bybit si aún no tienes una.
+Accede a Configuración de tu cuenta y dirígete a la sección de API.
+Genera una nueva clave de API con permisos de trading (sin permisos de retiro).
+2. Configuración del archivo config.py
+Crea un archivo llamado config.py en el mismo directorio donde tienes tu script y agrega las siguientes credenciales:
 
 
 api_key = 'tu_api_key'
@@ -39,14 +39,13 @@ api_secret = 'tu_api_secret'
 
 token_telegram = 'tu_telegram_bot_token'
 chat_id = 'tu_chat_id_telegram'
-
-3. Ajustes de parámetros
-Dentro del script, puedes ajustar varios parámetros para personalizar el comportamiento del bot:
+3. Ajustes de Parámetros Personalizados
+Dentro del script, puedes ajustar los siguientes parámetros para personalizar el comportamiento de tu bot de acuerdo a tus necesidades:
 
 amount_usdt: El monto inicial en USDT para cada operación.
 factor_multiplicador_cantidad: El porcentaje de incremento en la cantidad de monedas para las recompras.
 numero_recompras: El número de recompras que realizará el bot.
 posiciones_simultaneas: El número máximo de posiciones abiertas simultáneamente.
-factor_multiplicador_distancia: El porcentaje de distancia entre recompras.
+factor_multiplicador_distancia: El porcentaje de distancia entre las recompras.
 distancia_porcentaje_tp: El porcentaje de distancia para el Take Profit.
 distancia_porcentaje_sl: El porcentaje de distancia para el Stop Loss.
