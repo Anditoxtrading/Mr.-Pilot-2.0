@@ -1,6 +1,6 @@
 
 
-# Trading Bot de Bybit con Recompras Automáticas
+# Trading Bot de Bybit para operar con calculadora del gafas.
 
 Este es un bot de trading diseñado para operar en la plataforma Bybit utilizando su API. El bot realiza operaciones de compra o venta, establece stop loss y take profit, y ejecuta recompras automáticas en función de la evolución del precio. Además, se integra con Telegram para enviar notificaciones en tiempo real.
 
