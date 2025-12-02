@@ -17,12 +17,15 @@ factor_multiplicador_cantidad = Decimal(40) / Decimal('100') # % Incremento en l
 numero_recompras = int(6) # Cantidad de recompras que quieres que tenga la operacion
 posiciones_simultaneas= int(1) # Cantidad de posiciones que deseas tener abiertas a la vez.
 factor_multiplicador_distancia = Decimal(2) # % Porcentaje en la distancia en cada recompra
-distancia_porcentaje_tp = Decimal(1.5) / Decimal('100') # % Porcentaje en la distancia para colocar el Take Profit
-distancia_porcentaje_sl = Decimal(numero_recompras * factor_multiplicador_distancia / 100) + Decimal("0.006")  # % Porcentaje en la distancia para colocar el take profit a un 6% de la ultima recompra
+distancia_porcentaje_tp = Decimal(1.1) / Decimal('100') # % Porcentaje en la distancia para colocar el Take Profit
+distancia_porcentaje_sl = Decimal(numero_recompras * factor_multiplicador_distancia / 100) + Decimal("0.007")  # % Porcentaje en la distancia para colocar el SL a un 6% de la ultima recompra
 
 bot_token = config.token_telegram
 bot = telebot.TeleBot(bot_token)
 chat_id = config.chat_id
+
+# Diccionario para rastrear el número de veces que se ha colocado el TP por símbolo
+tp_counter = {}
 
 def enviar_mensaje_telegram(chat_id, mensaje):
     try:
@@ -56,18 +59,37 @@ def get_open_positions_count():
     except Exception as e:
         print(f"Error al obtener el conteo de posiciones abiertas: {e}")
         return 0
+
 def get_pnl(symbol):
     closed_orders_response = session.get_closed_pnl(category="linear", symbol=symbol, limit=1)
     closed_orders_list = closed_orders_response['result']['list']
 
     for order in closed_orders_list:
         pnl_cerrada = float(order['closedPnl'])
-        titulo = f"<b>🎉 Posición ganada {symbol} 🎉</b>\n\n"
-        subtitule = f"💰 PNL realizado 💰: {pnl_cerrada:.2f}$ USDT."
-        mensaje_pnl = titulo + subtitule
-        enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_pnl) 
+        emoji = "🎉" if pnl_cerrada > 0 else "⚠️"
+        estado = "GANANCIA" if pnl_cerrada > 0 else "PÉRDIDA"
+
+        # Obtener el número de recompras ejecutadas antes de resetear
+        recompras_ejecutadas = tp_counter.get(symbol, 1) - 1  # Restamos 1 porque el primer TP no es recompra
+
+        mensaje_pnl = f"""
+{emoji} <b>═══════════════════════</b> {emoji}
+<b>  POSICIÓN CERRADA - {symbol}</b>
+<b>═══════════════════════</b>
+
+💰 <b>PNL Realizado:</b> <code>{pnl_cerrada:.2f} USDT</code>
+📊 <b>Estado:</b> {estado}
+🔢 <b>Recompras ejecutadas:</b> {recompras_ejecutadas}
+
+━━━━━━━━━━━━━━━━━━━━━
+"""
+        enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_pnl)
         print(mensaje_pnl)
-        
+
+        # Resetear el contador de TP para este símbolo
+        if symbol in tp_counter:
+            del tp_counter[symbol]
+
 def take_profit(symbol):
     try:
         # Obtener la lista de posiciones actuales
@@ -75,7 +97,7 @@ def take_profit(symbol):
         if not positions_list or len(positions_list) == 0:
             print(f"No hay posiciones abiertas para {symbol}.")
             return
-        
+
         # Extraer información de la posición
         current_price = Decimal(positions_list[0]['avgPrice'])
         side = positions_list[0]['side']
@@ -93,7 +115,7 @@ def take_profit(symbol):
         else:
             print(f"No se detecta el lado de la posicion {side}")
             return
-        
+
         response_limit_tp = session.place_order(
             category="linear",
             symbol=symbol,
@@ -103,15 +125,39 @@ def take_profit(symbol):
             price=str(price_tp),
             reduceOnly=True,
         )
-        Mensaje_tp = f"Take Profit para {symbol} colocado con éxito: {response_limit_tp}"
-        enviar_mensaje_telegram(chat_id=chat_id, mensaje=Mensaje_tp)
-        print(Mensaje_tp)
+
+        # Verificar si la orden se colocó exitosamente
+        if response_limit_tp['retCode'] != 0:
+            error_msg = f"❌ Error al colocar Take Profit en {symbol}: {response_limit_tp.get('retMsg', 'Error desconocido')}"
+            enviar_mensaje_telegram(chat_id=chat_id, mensaje=error_msg)
+            print(error_msg)
+            return
+
+        # Incrementar el contador de TP para este símbolo
+        if symbol not in tp_counter:
+            tp_counter[symbol] = 1
+        else:
+            tp_counter[symbol] += 1
+
+        distancia_tp = ((price_tp - float(current_price)) / float(current_price)) * 100 if side == "Buy" else ((float(current_price) - price_tp) / float(current_price)) * 100
+
+        mensaje_tp = f"✅ <b>TP configurado</b> | {symbol} | <code>{price_tp:.6f}</code> ({abs(distancia_tp):.2f}%) | #{tp_counter[symbol]}"
+        enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_tp)
+        print(mensaje_tp)
     except Exception as e:
         print(f"Error en Take_profit para {symbol}: {str(e)}")
+
 def abrir_posicion_largo(symbol, base_asset_qty_final, distancia_porcentaje_sl):
     try:
-        if get_open_positions_count() >= posiciones_simultaneas: 
-            mensaje_count =("Se alcanzó el máximo posiciones abiertas. No se abrirá una nueva posición.")
+        if get_open_positions_count() >= posiciones_simultaneas:
+            mensaje_count = """
+⛔ <b>LÍMITE ALCANZADO</b>
+
+❌ Se alcanzó el máximo de posiciones abiertas
+📊 No se abrirá una nueva posición
+
+━━━━━━━━━━━━━━━━━━━━━
+"""
             enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_count)
             print (mensaje_count)
             return
@@ -128,9 +174,19 @@ def abrir_posicion_largo(symbol, base_asset_qty_final, distancia_porcentaje_sl):
             orderType="Market",
             qty=base_asset_qty_final,
         )
-        Mensaje_market = f"Orden Market Long en {symbol} abierta con éxito: {response_market_order}"
-        enviar_mensaje_telegram(chat_id=chat_id, mensaje=Mensaje_market)
-        print(Mensaje_market)
+
+        mensaje_market = f"""
+🚀 <b>POSICIÓN LONG ABIERTA</b>
+
+📈 <b>Par:</b> <code>{symbol}</code>
+💰 <b>Cantidad:</b> <code>{base_asset_qty_final}</code>
+📊 <b>Tipo:</b> Market Order
+🔵 <b>Lado:</b> BUY (LONG)
+
+━━━━━━━━━━━━━━━━━━━━━
+"""
+        enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_market)
+        print(mensaje_market)
 
         time.sleep(5)
         take_profit(symbol)
@@ -150,9 +206,20 @@ def abrir_posicion_largo(symbol, base_asset_qty_final, distancia_porcentaje_sl):
             tpslMode="Full",
             slOrderType="Market",
         )
-        mensaje_sl = f"Stop Loss para {symbol} colocado con éxito: {stop_loss_order}"
-        enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_sl)
-        print(mensaje_sl)
+
+        distancia_sl = ((float(current_price) - price_sl) / float(current_price)) * 100
+
+        # Construir mensaje consolidado de Stop Loss y órdenes límite
+        mensaje_ordenes = f"""
+🛡️ <b>STOP LOSS & ÓRDENES LÍMITE - LONG</b>
+
+📈 <b>Par:</b> <code>{symbol}</code>
+💵 <b>Precio entrada:</b> <code>{float(current_price):.6f} USDT</code>
+
+🔴 <b>Stop Loss:</b> <code>{price_sl:.6f}</code> ({distancia_sl:.2f}%)
+
+📥 <b>Órdenes Límite:</b>
+"""
 
         size_nuevo = base_asset_qty_final
         for i in range(1, numero_recompras + 1):
@@ -175,17 +242,30 @@ def abrir_posicion_largo(symbol, base_asset_qty_final, distancia_porcentaje_sl):
                 qty=str(cantidad_orden),
                 price=str(precio_orden_limite),
             )
-            mensaje_recompras2 = f"{symbol}: Orden Límite de compra {i} colocada con exito:{response_limit_order}"
-            enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_recompras2)
-            print(mensaje_recompras2)
+
+            # Calcular distancia real desde el precio de entrada
+            distancia_real = ((float(current_price) - precio_orden_limite) / float(current_price)) * 100
+
+            mensaje_ordenes += f"  #{i}: <code>{precio_orden_limite:.6f}</code> ({distancia_real:.2f}%) | Qty: <code>{cantidad_orden}</code>\n"
+
+        mensaje_ordenes += "\n━━━━━━━━━━━━━━━━━━━━━"
+        enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_ordenes)
+        print(mensaje_ordenes)
 
     except Exception as e:
         print(f"Error al abrir la posición: {e}")
 
 def abrir_posicion_corto(symbol, base_asset_qty_final, distancia_porcentaje_sl):
     try:
-        if get_open_positions_count() >= posiciones_simultaneas: 
-            mensaje_count =("Se alcanzó el máximo posiciones abiertas. No se abrirá una nueva posición.")
+        if get_open_positions_count() >= posiciones_simultaneas:
+            mensaje_count = """
+⛔ <b>LÍMITE ALCANZADO</b>
+
+❌ Se alcanzó el máximo de posiciones abiertas
+📊 No se abrirá una nueva posición
+
+━━━━━━━━━━━━━━━━━━━━━
+"""
             enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_count)
             print (mensaje_count)
             return
@@ -202,9 +282,19 @@ def abrir_posicion_corto(symbol, base_asset_qty_final, distancia_porcentaje_sl):
             orderType="Market",
             qty=base_asset_qty_final,
         )
-        Mensaje_market = f"Orden Market Short en {symbol} abierta con éxito: {response_market_order}"
-        enviar_mensaje_telegram(chat_id=chat_id, mensaje=Mensaje_market)
-        print(Mensaje_market)
+
+        mensaje_market = f"""
+🔴 <b>POSICIÓN SHORT ABIERTA</b>
+
+📉 <b>Par:</b> <code>{symbol}</code>
+💰 <b>Cantidad:</b> <code>{base_asset_qty_final}</code>
+📊 <b>Tipo:</b> Market Order
+🔴 <b>Lado:</b> SELL (SHORT)
+
+━━━━━━━━━━━━━━━━━━━━━
+"""
+        enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_market)
+        print(mensaje_market)
 
         time.sleep(5)
         take_profit(symbol)
@@ -224,9 +314,20 @@ def abrir_posicion_corto(symbol, base_asset_qty_final, distancia_porcentaje_sl):
             tpslMode="Full",
             slOrderType="Market",
         )
-        mensaje_sl = f"Stop Loss para {symbol} colocado con éxito: {stop_loss_order}"
-        enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_sl)
-        print(mensaje_sl)
+
+        distancia_sl = ((price_sl - float(current_price)) / float(current_price)) * 100
+
+        # Construir mensaje consolidado de Stop Loss y órdenes límite
+        mensaje_ordenes = f"""
+🛡️ <b>STOP LOSS & ÓRDENES LÍMITE - SHORT</b>
+
+📉 <b>Par:</b> <code>{symbol}</code>
+💵 <b>Precio entrada:</b> <code>{float(current_price):.6f} USDT</code>
+
+🔴 <b>Stop Loss:</b> <code>{price_sl:.6f}</code> ({distancia_sl:.2f}%)
+
+📥 <b>Órdenes Límite:</b>
+"""
 
         size_nuevo = base_asset_qty_final
         for i in range(1, numero_recompras + 1):
@@ -249,9 +350,15 @@ def abrir_posicion_corto(symbol, base_asset_qty_final, distancia_porcentaje_sl):
                 qty=str(cantidad_orden),
                 price=str(precio_orden_limite),
             )
-            mensaje_recompras2 = f"{symbol}: Orden Límite de venta {i} colocada con exito:{response_limit_order}"
-            enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_recompras2)
-            print(mensaje_recompras2)
+
+            # Calcular distancia real desde el precio de entrada
+            distancia_real = ((precio_orden_limite - float(current_price)) / float(current_price)) * 100
+
+            mensaje_ordenes += f"  #{i}: <code>{precio_orden_limite:.6f}</code> ({distancia_real:.2f}%) | Qty: <code>{cantidad_orden}</code>\n"
+
+        mensaje_ordenes += "\n━━━━━━━━━━━━━━━━━━━━━"
+        enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_ordenes)
+        print(mensaje_ordenes)
 
     except Exception as e:
         print(f"Error al abrir la posición: {e}")
@@ -319,7 +426,7 @@ def tomar_decision(file_path):
     while True:
         # Leer constantemente el archivo y actualizar los targets
         symbols_targets = read_symbols_targets(file_path)
-        
+
         for symbol, (target_price_lg, target_price_st) in symbols_targets.items():
             if symbol not in monitoreados:  # Si la moneda no ha sido monitoreada aún
                 try:
@@ -336,7 +443,16 @@ def tomar_decision(file_path):
                         base_asset_qty_final = qty_step(symbol, amount_usdt)
                         abrir_posicion_largo(symbol, base_asset_qty_final, distancia_porcentaje_sl)
                         monitoreados.add(symbol)  # Marcar la moneda como procesada
-                        mensaje_monitor = f"Precio llegando a punto Target Long {symbol} a {last_price}. Dejando de monitorear."
+                        mensaje_monitor = f"""
+🎯 <b>TARGET ALCANZADO - LONG</b>
+
+📈 <b>Par:</b> <code>{symbol}</code>
+💵 <b>Precio actual:</b> <code>{last_price:.6f} USDT</code>
+🎯 <b>Target Long:</b> <code>{target_price_lg:.6f} USDT</code>
+✅ <b>Estado:</b> Entrando en posición
+
+━━━━━━━━━━━━━━━━━━━━━
+"""
                         enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_monitor)
                         print(mensaje_monitor)
 
@@ -344,7 +460,16 @@ def tomar_decision(file_path):
                         base_asset_qty_final = qty_step(symbol, amount_usdt)
                         abrir_posicion_corto(symbol, base_asset_qty_final, distancia_porcentaje_sl)
                         monitoreados.add(symbol)  # Marcar la moneda como procesada
-                        mensaje_monitor = f"Precio llegando a punto Target Short {symbol} a {last_price}. Dejando de monitorear."
+                        mensaje_monitor = f"""
+🎯 <b>TARGET ALCANZADO - SHORT</b>
+
+📉 <b>Par:</b> <code>{symbol}</code>
+💵 <b>Precio actual:</b> <code>{last_price:.6f} USDT</code>
+🎯 <b>Target Short:</b> <code>{target_price_st:.6f} USDT</code>
+✅ <b>Estado:</b> Entrando en posición
+
+━━━━━━━━━━━━━━━━━━━━━
+"""
                         enviar_mensaje_telegram(chat_id=chat_id, mensaje=mensaje_monitor)
                         print(mensaje_monitor)
 
@@ -354,13 +479,13 @@ def tomar_decision(file_path):
                               f"Long Target: {target_price_lg} ({distancia_long:.2f}%), "
                               f"Short Target: {target_price_st} ({distancia_short:.2f}%)")
                         print("")
-                    
-                
+
+
                 except Exception as e:
                     print(f"Error al tomar decisión para {symbol}: {e}")
-        
+
         # Retornar a la lectura del archivo para verificar si hubo cambios
-        time.sleep(5)  # Espera de 5 segundos antes de volver a leer el archivo
+        time.sleep(2)  # Espera de 5 segundos antes de volver a leer el archivo
 
 
 def cancelar_ordenes():
@@ -408,7 +533,7 @@ def cancelar_ordenes():
         except Exception as e:
             print(f"Error en la cancelación de órdenes: {e}")
 
-        time.sleep(5)  # Esperar 5 segundos antes de la próxima iteración
+        time.sleep(2)  # Esperar 5 segundos antes de la próxima iteración
 
 
 
